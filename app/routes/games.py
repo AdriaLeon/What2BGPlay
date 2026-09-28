@@ -1,0 +1,130 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models.board_game import BoardGame
+from app.models.genre import Genre
+from app.models.image import BoardGameImage
+from app.schemas.board_game import BoardGameCreate, BoardGameResponse
+
+
+router = APIRouter(
+    prefix="/api/games",
+    tags=["Board Games"],
+)
+
+# Used to map to genres and images into a str array to satisfy the API schema
+def to_board_game_response(game: BoardGame) -> BoardGameResponse:
+    return BoardGameResponse(
+        id=game.id,
+        title=game.title,
+        min_players=game.min_players,
+        max_players=game.max_players,
+        duration_minutes=game.duration_minutes,
+        description=game.description,
+        genres=[genre.name for genre in game.genres],
+        images=[image.image_url for image in game.images],
+        created_at=game.created_at,
+    )
+
+
+@router.post(
+    "",
+    response_model=BoardGameResponse,
+    status_code=201,
+)
+def create_game(
+    game: BoardGameCreate,
+    db: Session = Depends(get_db),
+):
+    # Find existing genres or create new ones
+    genres = []
+
+    for genre_name in game.genres:
+        genre = (
+            db.query(Genre)
+            .filter(Genre.name == genre_name)
+            .first()
+        )
+
+        if genre is None:
+            genre = Genre(name=genre_name)
+            db.add(genre)
+
+        genres.append(genre)
+
+    # Create the board game
+    db_game = BoardGame(
+        title=game.title,
+        min_players=game.min_players,
+        max_players=game.max_players,
+        duration_minutes=game.duration_minutes,
+        description=game.description,
+        genres=genres,
+    )
+
+    # Add images
+    for image_url in game.images:
+        db_game.images.append(
+            BoardGameImage(image_url=image_url)
+        )
+
+    db.add(db_game)
+    db.commit()
+    db.refresh(db_game)
+
+    return to_board_game_response(db_game)
+
+
+@router.get(
+    "",
+    response_model=list[BoardGameResponse],
+)
+def get_games(
+    db: Session = Depends(get_db),
+):
+    games = db.query(BoardGame).all()
+
+    return [
+        to_board_game_response(game)
+        for game in games
+    ]
+
+
+@router.get(
+    "/{game_id}",
+    response_model=BoardGameResponse,
+)
+def get_game(
+    game_id: int,
+    db: Session = Depends(get_db),
+):
+    game = db.get(BoardGame, game_id)
+
+    if game is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Board game not found",
+        )
+
+    return to_board_game_response(game)
+
+
+@router.delete(
+    "/{game_id}",
+    status_code=204,
+)
+def delete_game(
+    game_id: int,
+    db: Session = Depends(get_db),
+):
+    game = db.get(BoardGame, game_id)
+
+    if game is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Board game not found",
+        )
+
+    db.delete(game)
+    db.commit()
