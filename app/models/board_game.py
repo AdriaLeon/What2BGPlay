@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import DateTime, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+
 class BoardGame(Base):
     __tablename__ = "board_games"
 
@@ -16,6 +17,12 @@ class BoardGame(Base):
     title: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
+    )
+
+    normalized_title: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        index=True,
     )
 
     min_players: Mapped[int] = mapped_column(
@@ -55,9 +62,10 @@ class BoardGame(Base):
     )
 
     users: Mapped[list["UserBoardGame"]] = relationship(
-    back_populates="board_game",
-    cascade="all, delete-orphan",
+        back_populates="board_game",
+        cascade="all, delete-orphan",
     )
+
 
 class BoardGameGenre(Base):
     __tablename__ = "board_game_genres"

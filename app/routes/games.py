@@ -8,6 +8,7 @@ from app.models.image import BoardGameImage
 from app.schemas.board_game import BoardGameCreate, BoardGameResponse
 from app.services.auth.dependencies import get_current_user
 from app.models.user import User, UserBoardGame
+from app.lib.normalization import normalize_board_game_name
 
 
 router = APIRouter(
@@ -59,6 +60,7 @@ def create_game(
     # Create the board game
     db_game = BoardGame(
         title=game.title,
+        normalized_title=normalize_board_game_name(game.title),
         min_players=game.min_players,
         max_players=game.max_players,
         duration_minutes=game.duration_minutes,

@@ -9,6 +9,7 @@ from app.schemas.user import (UserGameCreate,UserGameResponse,UserResponse,)
 from app.services.auth.dependencies import get_current_user
 from app.models.genre import Genre
 from app.models.image import BoardGameImage
+from app.lib.normalization import normalize_board_game_name
 
 router = APIRouter(
     prefix="/users",
@@ -45,21 +46,33 @@ def get_my_games(
     response_model=UserGameResponse,
     status_code=status.HTTP_201_CREATED,
 )
+
+@router.post(
+    "/me/games",
+    response_model=UserGameResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def add_game(
     data: UserGameCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Try to find existing game
+    # Try to find existing game by ID
     game = None
 
     if data.board_game_id is not None:
         game = db.get(BoardGame, data.board_game_id)
 
-    # If game doesn't exist, create it
+        if game is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Board game not found",
+            )
+
+    # If no ID was provided, create/find the game by title
     if game is None:
 
-        # These fields are required to create a new game
+        # These fields are required when creating a game
         if (
             data.title is None
             or data.min_players is None
@@ -74,40 +87,52 @@ def add_game(
                 ),
             )
 
-        # Find or create genres
-        genres = []
-
-        for genre_name in data.genres:
-            genre = db.scalar(
-                select(Genre).where(Genre.name == genre_name)
-            )
-
-            if genre is None:
-                genre = Genre(name=genre_name)
-                db.add(genre)
-
-            genres.append(genre)
-
-        # Create board game
-        game = BoardGame(
-            title=data.title,
-            min_players=data.min_players,
-            max_players=data.max_players,
-            duration_minutes=data.duration_minutes,
-            description=data.description,
-            genres=genres,
+        # Normalize title
+        normalized_title = normalize_board_game_name(
+            data.title
         )
 
-        # Add images
-        for image_url in data.images:
-            game.images.append(
-                BoardGameImage(image_url=image_url)
+        # Check if a game with the same normalized title already exists
+        game = db.scalar(
+            select(BoardGame).where(
+                BoardGame.normalized_title == normalized_title
+            )
+        )
+
+        # No existing game -> create it
+        if game is None:
+
+            # Find or create genres
+            genres = []
+
+            for genre_name in data.genres:
+                genre = db.scalar(
+                    select(Genre).where(
+                        Genre.name == genre_name
+                    )
+                )
+
+                if genre is None:
+                    genre = Genre(name=genre_name)
+                    db.add(genre)
+
+                genres.append(genre)
+
+            # Create board game
+            game = BoardGame(
+                title=data.title,
+                normalized_title=normalized_title,
+                min_players=data.min_players,
+                max_players=data.max_players,
+                duration_minutes=data.duration_minutes,
+                description=data.description,
+                genres=genres,
             )
 
-        db.add(game)
+            db.add(game)
 
-        # Get generated ID before creating UserBoardGame
-        db.flush()
+            # Get generated ID before creating UserBoardGame
+            db.flush()
 
     # Check if user already has this game
     existing = db.scalar(
