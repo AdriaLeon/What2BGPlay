@@ -6,10 +6,12 @@ from app.models.board_game import BoardGame
 from app.models.genre import Genre
 from app.models.image import BoardGameImage
 from app.schemas.board_game import BoardGameCreate, BoardGameResponse
+from app.services.auth.dependencies import get_current_user
+from app.models.user import User, UserBoardGame
 
 
 router = APIRouter(
-    prefix="/api/games",
+    prefix="/games",
     tags=["Board Games"],
 )
 
@@ -35,6 +37,7 @@ def to_board_game_response(game: BoardGame) -> BoardGameResponse:
 )
 def create_game(
     game: BoardGameCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     # Find existing genres or create new ones
@@ -70,6 +73,19 @@ def create_game(
         )
 
     db.add(db_game)
+
+    # Flush so db_game.id is generated before creating the association
+    db.flush()
+
+    # Automatically add the new game to the creator's collection
+    user_game = UserBoardGame(
+        user_id=current_user.id,
+        board_game_id=db_game.id,
+    )
+
+    db.add(user_game)
+
+    # Commit everything together
     db.commit()
     db.refresh(db_game)
 
