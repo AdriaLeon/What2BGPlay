@@ -13,9 +13,9 @@ def normalize_board_game_name(name: str) -> str:
     name = name.lower()
 
     name = re.sub(
-        r"[^a-z0-9]+",
-        "-",
+        r"[^a-z0-9]",
+        "",
         name,
     )
 
-    return name.strip("-")
+    return name

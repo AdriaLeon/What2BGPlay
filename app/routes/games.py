@@ -9,6 +9,7 @@ from app.schemas.board_game import BoardGameCreate, BoardGameResponse
 from app.services.auth.dependencies import get_current_user
 from app.models.user import User, UserBoardGame
 from app.lib.normalization import normalize_board_game_name
+from app.lib.game_search import search_games
 
 
 router = APIRouter(
@@ -29,7 +30,6 @@ def to_board_game_response(game: BoardGame) -> BoardGameResponse:
         images=[image.image_url for image in game.images],
         created_at=game.created_at,
     )
-
 
 @router.post(
     "",
@@ -92,7 +92,6 @@ def create_game(
     db.refresh(db_game)
 
     return to_board_game_response(db_game)
-
 
 @router.get(
     "",
@@ -168,41 +167,19 @@ def recommend_game(
     "/search",
     response_model=list[BoardGameResponse],
 )
-def search_games(
+def search_games_route(
     min_players: int | None = Query(default=None, ge=1),
     max_players: int | None = Query(default=None, ge=1),
     name: str | None = Query(default=None),
     duration: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
 ):
-    query = db.query(BoardGame)
-
-    if min_players is not None:
-        query = query.filter(
-            BoardGame.max_players >= min_players,
-        )
-
-    if max_players is not None:
-        query = query.filter(
-            BoardGame.min_players <= max_players,
-        )
-
-    if name is not None:
-        normalized_name = normalize_board_game_name(name)
-
-        query = query.filter(
-            BoardGame.normalized_title.contains(normalized_name),
-        )
-
-    if duration is not None:
-        query = query.filter(
-            BoardGame.duration_minutes <= duration,
-        )
-
-    games = (
-        query
-        .order_by(BoardGame.title)
-        .all()
+    games = search_games(
+        db=db,
+        min_players=min_players,
+        max_players=max_players,
+        name=name,
+        duration=duration,
     )
 
     return [
