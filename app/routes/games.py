@@ -10,6 +10,7 @@ from app.services.auth.dependencies import get_current_user
 from app.models.user import User, UserBoardGame
 from app.lib.normalization import normalize_board_game_name
 from app.lib.game_search import search_games
+from app.lib.game_query import parse_game_query
 
 
 router = APIRouter(
@@ -180,6 +181,33 @@ def search_games_route(
         max_players=max_players,
         name=name,
         duration=duration,
+    )
+
+    return [
+        to_board_game_response(game)
+        for game in games
+    ]
+
+@router.get(
+    "/search/query",
+    response_model=list[BoardGameResponse],
+)
+def search_games_by_query(
+    query: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
+):
+    filters = parse_game_query(
+        db=db,
+        query=query,
+    )
+
+    games = search_games(
+        db=db,
+        min_players=filters.min_players,
+        max_players=filters.max_players,
+        name=filters.name,
+        duration=filters.duration,
+        genre=filters.genre,
     )
 
     return [

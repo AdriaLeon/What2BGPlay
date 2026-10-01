@@ -1,6 +1,10 @@
+import re
+
 from app.lib.normalization import normalize_board_game_name
 from app.models.board_game import BoardGame
 from sqlalchemy.orm import Session
+from dataclasses import dataclass
+from app.models.genre import Genre
 
 
 def is_within_one_edit(search: str, target: str) -> bool:
@@ -106,6 +110,7 @@ def search_games(
     max_players: int | None = None,
     name: str | None = None,
     duration: int | None = None,
+    genre: str | None = None,
 ) -> list[BoardGame]:
     
     query = db.query(BoardGame)
@@ -123,6 +128,13 @@ def search_games(
     if duration is not None:
         query = query.filter(
             BoardGame.duration_minutes <= duration,
+        )
+
+    if genre is not None:
+        query = (
+            query
+            .join(BoardGame.genres)
+            .filter(Genre.name == genre)
         )
 
     games = (
