@@ -5,18 +5,23 @@ import pytest
 from app.database import SessionLocal
 from app.models.board_game import BoardGame
 from app.models.genre import Genre
+from tests.database import TestingSessionLocal, create_test_database, drop_test_database
+
+@pytest.fixture(scope="session", autouse=True)
+def test_database():
+    create_test_database()
+
+    yield
+
+    drop_test_database()
+
 
 @pytest.fixture
 def db():
-    db = SessionLocal()
+    db = TestingSessionLocal()
 
     try:
-        strategy = db.query(Genre).filter(Genre.name == "strategy").first()
-
-        if strategy is None:
-            strategy = Genre(name="strategy")
-            db.add(strategy)
-            db.flush()
+        strategy = Genre(name="strategy")
 
         game = BoardGame(
             title="Catan",
@@ -28,11 +33,17 @@ def db():
             genres=[strategy],
         )
 
-        db.add(game)
+        db.add_all([strategy, game])
         db.commit()
 
         yield db
 
     finally:
         db.rollback()
+
+        # Clean data created by this test
+        db.query(BoardGame).delete()
+        db.query(Genre).delete()
+
+        db.commit()
         db.close()
