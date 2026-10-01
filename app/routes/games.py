@@ -165,6 +165,52 @@ def recommend_game(
     return to_board_game_response(game)
 
 @router.get(
+    "/search",
+    response_model=list[BoardGameResponse],
+)
+def search_games(
+    min_players: int | None = Query(default=None, ge=1),
+    max_players: int | None = Query(default=None, ge=1),
+    name: str | None = Query(default=None),
+    duration: int | None = Query(default=None, ge=1),
+    db: Session = Depends(get_db),
+):
+    query = db.query(BoardGame)
+
+    if min_players is not None:
+        query = query.filter(
+            BoardGame.max_players >= min_players,
+        )
+
+    if max_players is not None:
+        query = query.filter(
+            BoardGame.min_players <= max_players,
+        )
+
+    if name is not None:
+        normalized_name = normalize_board_game_name(name)
+
+        query = query.filter(
+            BoardGame.normalized_title.contains(normalized_name),
+        )
+
+    if duration is not None:
+        query = query.filter(
+            BoardGame.duration_minutes <= duration,
+        )
+
+    games = (
+        query
+        .order_by(BoardGame.title)
+        .all()
+    )
+
+    return [
+        to_board_game_response(game)
+        for game in games
+    ]
+
+@router.get(
     "/{game_id}",
     response_model=BoardGameResponse,
 )
