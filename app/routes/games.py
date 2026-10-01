@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -108,6 +108,61 @@ def get_games(
         for game in games
     ]
 
+@router.get(
+    "/recommend",
+    response_model=BoardGameResponse,
+)
+def recommend_game(
+    players: int | None = Query(default=None, ge=1),
+    genre: str | None = Query(default=None),
+    max_time: int | None = Query(default=None, ge=1),
+    offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = (
+        db.query(BoardGame)
+        .join(
+            UserBoardGame,
+            UserBoardGame.board_game_id == BoardGame.id,
+        )
+        .filter(
+            UserBoardGame.user_id == current_user.id,
+        )
+    )
+
+    if players is not None:
+        query = query.filter(
+            BoardGame.min_players <= players,
+            BoardGame.max_players >= players,
+        )
+
+    if genre is not None:
+        query = query.join(BoardGame.genres).filter(
+            Genre.name == genre,
+        )
+
+    if max_time is not None:
+        query = query.filter(
+            BoardGame.duration_minutes <= max_time,
+        )
+
+    games = (
+        query
+        .order_by(BoardGame.id)
+        .distinct()
+        .all()
+    )
+
+    if not games:
+        raise HTTPException(
+            status_code=404,
+            detail="No games in your collection match the selected filters",
+        )
+
+    game = games[offset % len(games)]
+
+    return to_board_game_response(game)
 
 @router.get(
     "/{game_id}",
