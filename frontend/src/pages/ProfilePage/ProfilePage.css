@@ -1,0 +1,22 @@
+.profile-page {
+  min-height: 100vh;
+
+  background-color: #f8f8f8;
+}
+
+.profile-content {
+  max-width: 1200px;
+
+  margin: 0 auto;
+
+  padding: 40px 24px;
+}
+
+.profile-error {
+  padding: 16px;
+
+  border: 1px solid #ddd;
+  border-radius: 8px;
+
+  background: white;
+}
